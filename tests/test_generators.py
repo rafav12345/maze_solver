@@ -4,6 +4,13 @@ import pytest
 from core.grid import Grid, GridPosition
 from core.events import EventType
 from generators.dfs_generator import DFSGenerator
+from generators.kruskal_generator import KruskalGenerator
+from generators.prim_generator import PrimGenerator
+from generators.binary_tree_generator import BinaryTreeGenerator
+from generators.wilson_generator import WilsonGenerator
+from generators.eller_generator import EllerGenerator
+from generators.sidewinder_generator import SidewinderGenerator
+from generators.hunt_kill_generator import HuntAndKillGenerator
 
 
 class TestDFSGenerator:
@@ -127,3 +134,282 @@ class TestDFSGenerator:
         DFSGenerator(grid, seed=0).generate_complete()
         for pos in grid.all_positions():
             assert grid.get_cell(pos).visited is False
+
+
+class TestKruskalGenerator:
+    """Test suite for Kruskal's maze generator."""
+
+    def test_generates_connected_maze(self) -> None:
+        """Every cell should be reachable from start."""
+        grid = Grid(20, 20)
+        gen = KruskalGenerator(grid, seed=42)
+        gen.generate_complete()
+
+        # BFS from start to verify connectivity
+        visited = set()
+        queue = [grid.start]
+        visited.add(grid.start)
+        while queue:
+            pos = queue.pop(0)
+            for neighbor in grid.get_passable_neighbors(pos):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        assert len(visited) == grid.num_cols * grid.num_rows, (
+            f"Kruskal didn't create fully connected maze. "
+            f"Only {len(visited)}/{grid.num_cols * grid.num_rows} cells reachable."
+        )
+
+    def test_entrance_and_exit(self) -> None:
+        """Entrance and exit should be open."""
+        grid = Grid(15, 12)
+        gen = KruskalGenerator(grid, seed=0)
+        gen.generate_complete()
+
+        assert grid.get_cell(GridPosition(0, 0)).has_top_wall is False
+        assert grid.get_cell(GridPosition(14, 11)).has_bottom_wall is False
+
+    def test_seed_determinism(self) -> None:
+        """Same seed produces identical maze."""
+        grid1 = Grid(15, 15)
+        KruskalGenerator(grid1, seed=999).generate_complete()
+
+        grid2 = Grid(15, 15)
+        KruskalGenerator(grid2, seed=999).generate_complete()
+
+        for pos in grid1.all_positions():
+            c1 = grid1.get_cell(pos)
+            c2 = grid2.get_cell(pos)
+            assert c1.has_left_wall == c2.has_left_wall
+            assert c1.has_right_wall == c2.has_right_wall
+            assert c1.has_top_wall == c2.has_top_wall
+            assert c1.has_bottom_wall == c2.has_bottom_wall
+
+    def test_different_from_dfs(self) -> None:
+        """Kruskal should produce different structure than DFS."""
+        grid_dfs = Grid(20, 20)
+        DFSGenerator(grid_dfs, seed=42).generate_complete()
+
+        grid_kruskal = Grid(20, 20)
+        KruskalGenerator(grid_kruskal, seed=42).generate_complete()
+
+        # Count structural differences
+        differences = 0
+        for pos in grid_dfs.all_positions():
+            c_dfs = grid_dfs.get_cell(pos)
+            c_kruskal = grid_kruskal.get_cell(pos)
+
+            if (c_dfs.has_left_wall != c_kruskal.has_left_wall or
+                c_dfs.has_right_wall != c_kruskal.has_right_wall or
+                c_dfs.has_top_wall != c_kruskal.has_top_wall or
+                c_dfs.has_bottom_wall != c_kruskal.has_bottom_wall):
+                differences += 1
+
+        # Should be significantly different (at least 10% of cells)
+        min_expected_diff = (grid_dfs.num_cols * grid_dfs.num_rows) * 0.1
+        assert differences >= min_expected_diff, (
+            f"Kruskal and DFS too similar: only {differences} cells differ"
+        )
+
+    def test_yields_events(self) -> None:
+        """Generator should yield events during generation."""
+        grid = Grid(8, 8)
+        gen = KruskalGenerator(grid, seed=42)
+        events = list(gen.generate())
+
+        assert len(events) > 0
+        types = {e.event_type for e in events}
+        assert EventType.VISIT in types
+        assert EventType.COMPLETE in types
+
+    def test_small_maze(self) -> None:
+        """3x3 maze works correctly."""
+        grid = Grid(3, 3)
+        gen = KruskalGenerator(grid, seed=0)
+        gen.generate_complete()
+
+        # Should be fully connected
+        visited = set()
+        queue = [grid.start]
+        visited.add(grid.start)
+        while queue:
+            pos = queue.pop(0)
+            for neighbor in grid.get_passable_neighbors(pos):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        assert len(visited) == 9
+
+
+class TestPrimGenerator:
+    """Test suite for Prim's maze generator."""
+
+    def test_generates_connected_maze(self) -> None:
+        """Every cell should be reachable from start."""
+        grid = Grid(20, 20)
+        gen = PrimGenerator(grid, seed=42)
+        gen.generate_complete()
+
+        # BFS from start to verify connectivity
+        visited = set()
+        queue = [grid.start]
+        visited.add(grid.start)
+        while queue:
+            pos = queue.pop(0)
+            for neighbor in grid.get_passable_neighbors(pos):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        assert len(visited) == grid.num_cols * grid.num_rows, (
+            f"Prim didn't create fully connected maze. "
+            f"Only {len(visited)}/{grid.num_cols * grid.num_rows} cells reachable."
+        )
+
+    def test_entrance_and_exit(self) -> None:
+        """Entrance and exit should be open."""
+        grid = Grid(12, 15)
+        gen = PrimGenerator(grid, seed=0)
+        gen.generate_complete()
+
+        assert grid.get_cell(GridPosition(0, 0)).has_top_wall is False
+        assert grid.get_cell(GridPosition(11, 14)).has_bottom_wall is False
+
+    def test_seed_determinism(self) -> None:
+        """Same seed produces identical maze."""
+        grid1 = Grid(12, 12)
+        PrimGenerator(grid1, seed=777).generate_complete()
+
+        grid2 = Grid(12, 12)
+        PrimGenerator(grid2, seed=777).generate_complete()
+
+        for pos in grid1.all_positions():
+            c1 = grid1.get_cell(pos)
+            c2 = grid2.get_cell(pos)
+            assert c1.has_left_wall == c2.has_left_wall
+            assert c1.has_right_wall == c2.has_right_wall
+            assert c1.has_top_wall == c2.has_top_wall
+            assert c1.has_bottom_wall == c2.has_bottom_wall
+
+    def test_different_from_kruskal(self) -> None:
+        """Prim should produce different structure than Kruskal."""
+        grid_kruskal = Grid(20, 20)
+        KruskalGenerator(grid_kruskal, seed=42).generate_complete()
+
+        grid_prim = Grid(20, 20)
+        PrimGenerator(grid_prim, seed=42).generate_complete()
+
+        # Count structural differences
+        differences = 0
+        for pos in grid_kruskal.all_positions():
+            c_kruskal = grid_kruskal.get_cell(pos)
+            c_prim = grid_prim.get_cell(pos)
+
+            if (c_kruskal.has_left_wall != c_prim.has_left_wall or
+                c_kruskal.has_right_wall != c_prim.has_right_wall or
+                c_kruskal.has_top_wall != c_prim.has_top_wall or
+                c_kruskal.has_bottom_wall != c_prim.has_bottom_wall):
+                differences += 1
+
+        # Should be significantly different (at least 10% of cells)
+        min_expected_diff = (grid_kruskal.num_cols * grid_kruskal.num_rows) * 0.1
+        assert differences >= min_expected_diff, (
+            f"Prim and Kruskal too similar: only {differences} cells differ"
+        )
+
+    def test_yields_events(self) -> None:
+        """Generator should yield events during generation."""
+        grid = Grid(10, 10)
+        gen = PrimGenerator(grid, seed=42)
+        events = list(gen.generate())
+
+        assert len(events) > 0
+        types = {e.event_type for e in events}
+        assert EventType.WALL_REMOVED in types
+        assert EventType.COMPLETE in types
+
+    def test_small_maze(self) -> None:
+        """4x4 maze works correctly."""
+        grid = Grid(4, 4)
+        gen = PrimGenerator(grid, seed=0)
+        gen.generate_complete()
+
+        # Should be fully connected
+        visited = set()
+        queue = [grid.start]
+        visited.add(grid.start)
+        while queue:
+            pos = queue.pop(0)
+            for neighbor in grid.get_passable_neighbors(pos):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        assert len(visited) == 16
+
+
+# ---------------------------------------------------------------------------
+# Parametrized tests for ALL generators (connectivity, entrance/exit, seed)
+# ---------------------------------------------------------------------------
+
+ALL_GENERATORS = [
+    DFSGenerator,
+    KruskalGenerator,
+    PrimGenerator,
+    BinaryTreeGenerator,
+    WilsonGenerator,
+    EllerGenerator,
+    SidewinderGenerator,
+    HuntAndKillGenerator,
+]
+
+
+@pytest.mark.parametrize("gen_cls", ALL_GENERATORS, ids=lambda c: c.__name__)
+class TestAllGenerators:
+    """Parametrized tests that apply to every generator."""
+
+    def test_generates_connected_maze(self, gen_cls) -> None:
+        grid = Grid(15, 15)
+        gen_cls(grid, seed=42).generate_complete()
+
+        visited = set()
+        queue = [grid.start]
+        visited.add(grid.start)
+        while queue:
+            pos = queue.pop(0)
+            for neighbor in grid.get_passable_neighbors(pos):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        assert len(visited) == grid.num_cols * grid.num_rows, (
+            f"{gen_cls.__name__} did not produce a fully connected maze."
+        )
+
+    def test_entrance_and_exit(self, gen_cls) -> None:
+        grid = Grid(10, 10)
+        gen_cls(grid, seed=0).generate_complete()
+
+        assert grid.get_cell(GridPosition(0, 0)).has_top_wall is False
+        assert grid.get_cell(GridPosition(9, 9)).has_bottom_wall is False
+
+    def test_seed_determinism(self, gen_cls) -> None:
+        grid1 = Grid(10, 10)
+        gen_cls(grid1, seed=42).generate_complete()
+
+        grid2 = Grid(10, 10)
+        gen_cls(grid2, seed=42).generate_complete()
+
+        for pos in grid1.all_positions():
+            c1 = grid1.get_cell(pos)
+            c2 = grid2.get_cell(pos)
+            assert c1.has_left_wall == c2.has_left_wall
+            assert c1.has_right_wall == c2.has_right_wall
+            assert c1.has_top_wall == c2.has_top_wall
+            assert c1.has_bottom_wall == c2.has_bottom_wall
+
+    def test_yields_complete_event(self, gen_cls) -> None:
+        grid = Grid(5, 5)
+        events = list(gen_cls(grid, seed=42).generate())
+        types = {e.event_type for e in events}
+        assert EventType.COMPLETE in types

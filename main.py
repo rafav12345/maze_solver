@@ -13,6 +13,13 @@ from core.events import AlgorithmEvent, EventType
 from core.grid import Grid, GridPosition
 from generators.base_generator import BaseGenerator
 from generators.dfs_generator import DFSGenerator
+from generators.kruskal_generator import KruskalGenerator
+from generators.prim_generator import PrimGenerator
+from generators.binary_tree_generator import BinaryTreeGenerator
+from generators.wilson_generator import WilsonGenerator
+from generators.eller_generator import EllerGenerator
+from generators.sidewinder_generator import SidewinderGenerator
+from generators.hunt_kill_generator import HuntAndKillGenerator
 from solvers.base_solver import BaseSolver
 from solvers.dfs_solver import DFSSolver
 from solvers.bfs_solver import BFSSolver
@@ -27,9 +34,15 @@ from visualization.stats_panel import StatsPanel, ComparisonTable
 
 
 # Registry of available generators and solvers.
-# Step 2 will add more generators.
 GENERATORS: dict[str, type[BaseGenerator]] = {
     "DFS (Recursive Backtracker)": DFSGenerator,
+    "Kruskal's (Randomized MST)": KruskalGenerator,
+    "Prim's (Growing Tree)": PrimGenerator,
+    "Binary Tree": BinaryTreeGenerator,
+    "Wilson's (Loop-Erased Walk)": WilsonGenerator,
+    "Eller's (Row-by-Row)": EllerGenerator,
+    "Sidewinder": SidewinderGenerator,
+    "Hunt-and-Kill": HuntAndKillGenerator,
 }
 
 SOLVERS: dict[str, type[BaseSolver]] = {
